@@ -302,7 +302,9 @@ static i32 runtrap(Shell *sh, i32 idx)
     Value *v = lookup(sh, "BASH_TRAPSIG");
     if (v) v->attrs &= ~V_EXPORT;
     sh->evaldepth++;
-    runsource(sh, cmd, sh->iname, a, 0, sh->line);
+    // As bash, a signal's action is numbered from line 1, but DEBUG,
+    // ERR and RETURN go on from the current line
+    runsource(sh, cmd, sh->iname, a, 0, idx>=TRAP_DEBUG ? sh->line : 1);
     i32 own = sh->status;
     sh->evaldepth--;
     poptemp(sh, "BASH_TRAPSIG");

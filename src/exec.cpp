@@ -529,13 +529,27 @@ static i32 callfunction(Shell *, Func *, Str *, iz, Arena);
 
 // The line a command substitution's text, parsed again to run it,
 // starts at. As bash, an interactive shell outside a sourced file
-// numbers it from 1, and a ${ ...; } from 2, but not in a child that
+// numbers it from 1 (see fnline for ${ ...; }), but not in a child that
 // bash forks for a ( ), comsub, procsub or compound command, which is
 // not interactive: those go on from the current line.
 static i32 comsubline(Shell *sh, i32 first)
 {
     b32 reset = sh->interactive && !sh->sourcedepth && !sh->subchild;
     return reset ? first : sh->line;
+}
+
+// A command's line for LINENO and the like. As bash, an interactive
+// shell outside a sourced file numbers a function's lines from its
+// body's (a ${ ...; } counts as a function, though it leaves the body
+// line alone), but only for simple commands, (( )), [[ ]] and the
+// first expression of an arithmetic for.
+static i32 fnline(Shell *sh, i32 line)
+{
+    if (sh->funcdepth && sh->interactive && !sh->sourcedepth) {
+        line -= sh->funcline - 1;
+        line  = line>0 ? line : 1;
+    }
+    return line;
 }
 
 static void runjob(Shell *sh, SubJob *j, Arena scratch)
@@ -2789,6 +2803,8 @@ static i32 callfunction(Shell *sh, Func *fn, Str *argv, iz argc, Arena scratch)
     Str srcname = sh->srcname;
     sh->srcname = code->file;
     i32 ctlline = sh->ctlline;
+    i32 funcline = sh->funcline;
+    sh->funcline = code->body->line;
 
     // Pop this call on the way out of an escape too, so that a shell
     // that resumes after an expansion error has no stale frames
@@ -2832,6 +2848,7 @@ static i32 callfunction(Shell *sh, Func *fn, Str *argv, iz argc, Arena scratch)
     sh->loopdepth = loopdepth;
     sh->srcname   = srcname;
     sh->ctlline   = ctlline;
+    sh->funcline  = funcline;
     leaveframe(sh, &f);
     sh->args = saved;
     if (escaped) {
@@ -2887,7 +2904,7 @@ static Str runfunsub(Shell *sh, Arena *a, Str src, Capture *cap, Arena scratch)
     b32 escaped = jmpset(e.jmp);
     if (!escaped) {
         if (valsub) makelocal(sh, &scratch, "REPLY");
-        runsource(sh, src, sh->iname, scratch, 0, comsubline(sh, 2), 0, 0, 1);
+        runsource(sh, src, sh->iname, scratch, 0, comsubline(sh, 1), 0, 0, 1);
         if (valsub) val = clone(a, getvar(sh, &scratch, "REPLY").value);
     }
     sh->esc = e.up;
@@ -3056,12 +3073,12 @@ static void runsimple1(Shell *sh, Node *n, Arena scratch, Str *last)
     sh->forked   = 0;
     sh->asyncpct = 0;
     safepoint(sh->sched);
-    sh->line    = n->line;
+    sh->line    = fnline(sh, n->line);
     sh->current = n;
     if (!sh->intrap) sh->cmdnode = n;  // in trap actions, what ran them
     if (sh->traps && !debugdone) {
         b32 skip = rundebugtrap(sh, scratch);
-        sh->line    = n->line;
+        sh->line    = fnline(sh, n->line);
         sh->current = n;
         if (skip) return;
     }
@@ -3340,7 +3357,7 @@ static void runsimple1(Shell *sh, Node *n, Arena scratch, Str *last)
             copybytes(sh->cmdname, name.data, len);
             sh->cmdnamelen = len;
             callfunction(sh, fn, argv.data, argv.len, scratch);
-            sh->line = n->line;
+            sh->line = fnline(sh, n->line);
         } else {
             BOut  b     = {};
             BOut *saved = sh->bout;
@@ -4057,7 +4074,7 @@ static void execfor(Shell *sh, Node *n, Arena scratch)
 [[gnu::noinline]]
 // DEBUG before one of an arithmetic for's expressions, BASH_COMMAND
 // naming it as (( expr )).
-static void debugarithfor(Shell *sh, Node *n, Word *part, Arena scratch)
+static void debugarithfor(Shell *sh, Word *part, i32 line, Arena scratch)
 {
     if (!sh->intrap) {
         Store *st = sh->store;
@@ -4066,20 +4083,22 @@ static void debugarithfor(Shell *sh, Node *n, Word *part, Arena scratch)
         sh->cmdtext = sclone(st, concat3(&scratch, "((", t, "))"));
         sh->cmdnode = 0;
     }
-    sh->line = n->line;
+    sh->line = line;
     rundebugtrap(sh, scratch);
-    sh->line = n->line;
+    sh->line = line;
 }
 
 static void execarithfor(Shell *sh, Node *n, Arena scratch)
 {
-    sh->line = n->line;
+    // As bash, only the first expression sees a function's own lines
+    i32 line = fnline(sh, n->line);
+    sh->line = line;
     Word *init = n->arith;
     Word *test = init ? init->next : 0;
     Word *step = test ? test->next : 0;
     // As with (( )), an arithmetic error fails the loop with status 1.
     // DEBUG runs before each of the three expressions, as in bash.
-    if (sh->traps) debugarithfor(sh, n, init, scratch);
+    if (sh->traps) debugarithfor(sh, init, line, scratch);
     if (!arithpart(sh, scratch, init)) {
         sh->status = 1;
         return;
@@ -4090,14 +4109,16 @@ static void execarithfor(Shell *sh, Node *n, Arena scratch)
         Arena it = scratch;
         if (loopsafepoint(sh, it)) break;
         Arith r = {};
-        if (sh->traps) debugarithfor(sh, n, test, it);
+        sh->line = n->line;  // as bash, after the body's commands
+        if (sh->traps) debugarithfor(sh, test, n->line, it);
         if (!arithpart(sh, it, test, &r)) status = 1;
         if (!r.ok || !r.value) break;
         execute(sh, n->b, it);
         status = sh->status;
         if (sh->flow && loopflow(sh)) break;
         if (sh->exiting) break;
-        if (sh->traps) debugarithfor(sh, n, step, it);
+        sh->line = n->line;
+        if (sh->traps) debugarithfor(sh, step, n->line, it);
         if (!arithpart(sh, it, step)) {
             status = 1;
             break;
@@ -4161,15 +4182,16 @@ static void execcase(Shell *sh, Node *n, Arena scratch)
 static b32 debugcompound(Shell *sh, Node *n, Arena scratch)
 {
     if (!sh->intrap) sh->cmdnode = n;
+    i32 line = sh->line;
     b32 skip = rundebugtrap(sh, scratch);
-    sh->line = n->line;
+    sh->line = line;
     return skip;
 }
 
 [[gnu::noinline]]
 static void execarith(Shell *sh, Node *n, Arena scratch)
 {
-    sh->line = n->line;
+    sh->line = fnline(sh, n->line);
     if (sh->traps && debugcompound(sh, n, scratch)) return;
     Str text = expandstring(sh, &scratch, n->arith->text, XC_ARITH|XC_DQUOTE);
     if (sh->opt[O_XTRACE]) {
@@ -4185,7 +4207,7 @@ static void execarith(Shell *sh, Node *n, Arena scratch)
 [[gnu::noinline]]
 static void execcond(Shell *sh, Node *n, Arena scratch)
 {
-    sh->line = n->line;
+    sh->line = fnline(sh, n->line);
     if (sh->traps && debugcompound(sh, n, scratch)) return;
     sh->status = condeval(sh, &scratch, n->cond);
     setpstat1(sh);
