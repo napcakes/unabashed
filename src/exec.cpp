@@ -3129,6 +3129,7 @@ static void runsimple1(Shell *sh, Node *n, Arena scratch, Str *last)
     // check and for running it, when the first word expands to argv[0]
     Builtin *entry = 0;
     b32      named = 0;
+    u32      nsubst = sh->nsubst;  // with no command, the words' comsubs count
     if (rest) {
         Slice<Str> first = {};
         Word one = *rest;
@@ -3175,7 +3176,6 @@ static void runsimple1(Shell *sh, Node *n, Arena scratch, Str *last)
         *last = "";  // $_ becomes empty
         // Assignments only, with redirections in a temporary context.
         // The status is the last command substitution's, or zero.
-        u32  nsubst = sh->nsubst;
         b32  ok     = doassignments(sh, a, assigns, nassign);
         i32  laststatus = sh->nsubst==nsubst ? 0 : sh->status;
         if (n->redirs && !doredirs(sh, n->redirs, a, 0)) {
