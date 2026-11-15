@@ -537,6 +537,7 @@ static Image imagebuild(Shell *sh, Node *n, ImageRef im, b32 keepjobs = 0)
 
     Shell *c = shellcopy(sh, &st->a, st, 1);
     c->catchfatal |= n->kind != N_SIMPLE;
+    c->subchild   |= n->kind != N_SIMPLE;
     img.head->magic = IMAGEMAGIC;
     img.head->build = imagebuild_();
     img.head->sh    = c;
@@ -632,6 +633,7 @@ static Task *spawnvproc(Shell *sh, Node *node, File *in, File *out, b32 newloops
         c->jobs = 0;  // as bash's subshell for a compound stage
         c->curjob = c->prevjob = 0;
         c->catchfatal = 1;
+        c->subchild   = 1;
     }
     c->simplestages += node->kind == N_SIMPLE;
     m->node = copynode(&m->perm, node);
@@ -784,6 +786,7 @@ static Str procsubst(Shell *sh, Arena *a, Str body, b32 output)
     detachcaptures(sh, m->sh);  // it outlives a ${ ...; } capture
     m->src = clone(&m->perm, body);
     m->sh->noreport = 1;  // nothing it runs is reported, as in bash
+    m->sh->subchild = 1;
     Task *task = taskspawn(sh->sched, vprocmain, m, BIGSTACK);
     task->pid   = m->sh->bashpid;
     task->group = task->tag;  // tracing: not waited for in place

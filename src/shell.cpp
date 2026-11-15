@@ -652,6 +652,8 @@ struct Shell {
     b32      catchfatal;   // a fatal POSIX-mode expansion error ends it
                            // with 1, not 127: bash's child for a ( ),
                            // comsub or compound command catches it
+    b32      subchild;     // in bash's child for a ( ), comsub, procsub or
+                           // compound command, which is not interactive
     b32      forked;       // the next simple command is a stage or job
                            // bash forks first: %N is no command there
     b32      asyncpct;     // the next simple command is "%N &", so bg

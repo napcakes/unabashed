@@ -519,12 +519,24 @@ struct SubJob {
     b32   newloops;  // break and continue cannot see enclosing loops
     b32   comsub;    // SUB_SOURCE from $(...): see runsource
     b32   nojobs;    // a ( list ): it starts with no jobs or coprocesses
+    i32   line;      // SUB_SOURCE: its first line
     Func *fn;        // SUB_CALL: a function and its arguments
     Str  *argv;
     iz    argc;
 };
 
 static i32 callfunction(Shell *, Func *, Str *, iz, Arena);
+
+// The line a command substitution's text, parsed again to run it,
+// starts at. As bash, an interactive shell outside a sourced file
+// numbers it from 1, and a ${ ...; } from 2, but not in a child that
+// bash forks for a ( ), comsub, procsub or compound command, which is
+// not interactive: those go on from the current line.
+static i32 comsubline(Shell *sh, i32 first)
+{
+    b32 reset = sh->interactive && !sh->sourcedepth && !sh->subchild;
+    return reset ? first : sh->line;
+}
 
 static void runjob(Shell *sh, SubJob *j, Arena scratch)
 {
@@ -535,7 +547,7 @@ static void runjob(Shell *sh, SubJob *j, Arena scratch)
     case SUB_SOURCE:
         // Parsed again at run time, so its syntax errors are its own
         sh->tracedepth++;  // restored with the subshell
-        runsource(sh, j->src, "command substitution", scratch, 0, sh->line,
+        runsource(sh, j->src, "command substitution", scratch, 0, j->line,
                   0, 0, j->comsub);
         break;
     case SUB_FUNSUB:
@@ -573,6 +585,7 @@ static i32 subshell(Shell *sh, SubJob *j, Arena scratch, Buf *cap)
     // for it goes on with the shell's own point of return
     sh->catchfatal |= j->kind==SUB_SOURCE || j->nojobs ||
                       (j->kind==SUB_NODE && j->node->kind!=N_SIMPLE);
+    sh->subchild   |= sh->catchfatal;
     subshelltraps(sh);
     Sigproc *up = sh->sig;
     up->comsub = j->comsub;
@@ -791,6 +804,7 @@ static Str runcapture(Shell *sh, Arena *a, Str src, b32 kind)
     j.kind   = SUB_SOURCE;
     j.src    = src;
     j.comsub = kind == 0;
+    j.line   = comsubline(sh, 1);
     if (kind==2 && src.len && src[0]=='|') {
         // ${| cmd; }: the current shell, expanding to a local REPLY
         Str val = runfunsub(sh, a, cuthead(src, 1), 0, child);
@@ -2617,6 +2631,7 @@ static i32 runexternal(Shell *sh, Arena a, Str *argv, iz argc, Slice<Str> env, S
         sh->killsig   = 0;
         sh->errexited = 0;
         sh->catchfatal = 1;
+        sh->subchild   = 1;
         subshelltraps(sh);
         sh->shown   = 0;
         sh->bashpid = newvpid(sh);
@@ -2872,7 +2887,7 @@ static Str runfunsub(Shell *sh, Arena *a, Str src, Capture *cap, Arena scratch)
     b32 escaped = jmpset(e.jmp);
     if (!escaped) {
         if (valsub) makelocal(sh, &scratch, "REPLY");
-        runsource(sh, src, sh->iname, scratch, 0, sh->line, 0, 0, 1);
+        runsource(sh, src, sh->iname, scratch, 0, comsubline(sh, 2), 0, 0, 1);
         if (valsub) val = clone(a, getvar(sh, &scratch, "REPLY").value);
     }
     sh->esc = e.up;

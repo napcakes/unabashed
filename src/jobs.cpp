@@ -1078,6 +1078,7 @@ static Task *spawnbg(Shell *sh, Node *n, File *in, File *out, i64 *pid,
     Vproc *m = vprocwith(sh, in, out);
     Shell *c = m->sh;
     c->catchfatal |= n->kind != N_SIMPLE;  // as imagebuild
+    c->subchild   |= n->kind != N_SIMPLE;
     closecoproc(c);
     detachcaptures(sh, c);
     m->node = bgnode(c, &m->perm, n);
