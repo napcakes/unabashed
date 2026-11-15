@@ -3197,6 +3197,9 @@ static void runsimple1(Shell *sh, Node *n, Arena scratch, Str *last)
 
     Str name = argv[0];
     *last = argv[argv.len-1];
+    // bash's child for a stage or job runs a builtin or function no
+    // longer interactive, though its words expanded while it still was
+    sh->subchild |= forked;
 
     // Expand assignment values now (bash does it after the words)
     Assign *as = alloc<Assign>(a, nassign);
@@ -4661,12 +4664,14 @@ static void dumpstring(Shell *sh, Arena scratch, Str s, i32 line)
 // Report the parser's messages so far, and forget them. As bash's
 // parser_error, a shell reading interactively (at the prompt or in
 // eval, not a sourced file or PROMPT_COMMAND) names no line, nor quotes
-// the line in error.
+// the line in error. Its warnings go on naming none in a child, which
+// is no longer interactive, while its errors do.
 static void reportmessages(Shell *sh, Lexer *L)
 {
     Arena msgarena = *L->a;
-    b32   noline   = sh->interactive && !sh->sourcedepth && !(sh->iname=="PROMPT_COMMAND");
+    b32   prompt   = sh->interactive && !sh->sourcedepth && !(sh->iname=="PROMPT_COMMAND");
     for (Message *m = L->msgs; m; m = m->next) {
+        b32 noline = prompt && (m->kind==MSG_WARNING || !sh->subchild);
         if (noline && m->kind==MSG_LINE) continue;
         if (m->kind == MSG_DUMP) {
             dumpstring(sh, msgarena, m->text, m->line);
@@ -4738,6 +4743,7 @@ static i32 runsource(Shell *sh, Str src, Str iname, Arena scratch, b32 reader, i
     sh->iname  = iname;
     sh->lexeof = 0;
     L->dump    = sh->dumpstrings;
+    L->prompt  = reader && fill && sh->interactive;
     b32 prettynl = 0;
     for (;;) {
         Arena unit = *L->a;  // reset after each complete line
@@ -4770,6 +4776,17 @@ static i32 runsource(Shell *sh, Str src, Str iname, Arena scratch, b32 reader, i
         if (r.status == PARSE_ERROR) {
             if (L->overflow) {
                 sh->status = 139;
+            } else if (L->comsuberr && (sh->evaldepth || sh->sourcedepth) &&
+                       sh->interactive && !sh->subshell) {
+                // An interactive shell's goes on at the next line, as at
+                // the prompt
+                sh->status = 1;
+                L->line    = {};
+                L->idx     = 0;
+                L->pushed  = 0;
+                L->newunit = 1;
+                *L->a      = unit;
+                continue;
             } else if (L->comsuberr && (sh->evaldepth || sh->sourcedepth)) {
                 // Like ${x?}, abandons the shell, or ends a subshell
                 sh->lexer  = outer;

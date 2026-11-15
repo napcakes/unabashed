@@ -363,6 +363,7 @@ struct Lexer {
     b32      aliasopt;   // expand_aliases as set by shopt
     b32      extglobopt; // extglob as set by shopt
     b32      comsuberr;  // syntax error inside a command substitution
+    b32      prompt;     // reading at an interactive shell's prompt
     b32      staleline;  // a leading word gets line -1 (resumeaftereof)
 
     Redir   *heredocs[HEREDOCMAX];
@@ -3623,6 +3624,9 @@ static Matched parsecomsub(Lexer *L, i32 qc, i32 open, i32 close, i32 flags)
     if (jmpset(L->jmp)) {
         L->jmp = outer;
         if (!L->eofreached) {
+            // At the prompt bash's reader goes on with the state each
+            // level left, which fails once more apiece
+            if (L->prompt) message(L, L->lineno, "syntax error");
             parsefail(L);  // fatal: unwind the whole parse
         }
         L->eoftoken      = saved.eoftoken;
