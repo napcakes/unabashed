@@ -524,9 +524,9 @@ static i32 arithlexop(ArithExpr *x, u8 **pp, i32 curtok, i32 lasttok)
         p++;
     } else if (!arithisop(c)) {
         if (!curtok || arithisop(curtok) || arithmultiop(curtok)) {
-            aritherror(x, "arithmetic syntax error: operand expected");
+            aritherror(x, "syntax error: operand expected");
         } else {
-            aritherror(x, "arithmetic syntax error: invalid arithmetic operator");
+            aritherror(x, "syntax error: invalid arithmetic operator");
         }
         return AR_END;
     }
@@ -734,7 +734,7 @@ static i64 arithprimary(ArithExpr *x)
         arithreadtok(x);
 
     } else {
-        aritherror(x, "arithmetic syntax error: operand expected");
+        aritherror(x, "syntax error: operand expected");
     }
     return val;
 }
@@ -955,7 +955,7 @@ static i64 arithassign(ArithExpr *x)
         return 0;
     }
     if (!x->hastok) {
-        aritherror(x, "arithmetic syntax error in variable assignment");
+        aritherror(x, "syntax error in variable assignment");
         return 0;
     }
     ArithRef lhs = x->tokref;
@@ -1036,7 +1036,7 @@ static i64 arithevalstr(ArithCtx *c, Str s)
     arithreadtok(&x);
     i64 val = arithcomma(&x);
     if (x.curtok != AR_END) {
-        aritherror(&x, "arithmetic syntax error in expression");
+        aritherror(&x, "syntax error in expression");
     }
     env->cur = outer;
     env->depth--;
