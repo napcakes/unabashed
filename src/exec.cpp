@@ -4780,12 +4780,13 @@ static i32 runsource(Shell *sh, Str src, Str iname, Arena scratch, b32 reader, i
                        sh->interactive && !sh->subshell) {
                 // An interactive shell's goes on at the next line, as at
                 // the prompt
-                sh->status = 1;
-                L->line    = {};
-                L->idx     = 0;
-                L->pushed  = 0;
-                L->newunit = 1;
-                *L->a      = unit;
+                sh->status   = 1;
+                L->comsuberr = 0;
+                L->line      = {};
+                L->idx       = 0;
+                L->pushed    = 0;
+                L->newunit   = 1;
+                *L->a        = unit;
                 continue;
             } else if (L->comsuberr && (sh->evaldepth || sh->sourcedepth)) {
                 // Like ${x?}, abandons the shell, or ends a subshell

@@ -4,8 +4,10 @@
 # not in a warning. A syntax error in a command substitution in eval or
 # a sourced file discards that line and goes on with the next. At the
 # prompt each level of command substitution it was within adds one more
-# "syntax error". (Lines typed begin with a space, so that bash's echo
-# of them on a non-terminal can be removed.)
+# "syntax error". Afterward the parser looks for no closing `)' or `}'
+# that was open, and in eval a later plain syntax error ends it. (Lines
+# typed begin with a space, so that bash's echo of them on a
+# non-terminal can be removed.)
 exec 2>&1
 cmds=(
     ' echo A; eval "(<)"'
@@ -21,7 +23,7 @@ cmds=(
     ' echo K; coproc { eval "(<)"; }; wait'
     ' echo L; cat <(eval "(<)")'
     ' echo M; eval "x=\$(eval (<) )"; echo $?'
-    " eval '\$(\$(<)); echo no"
+    " eval '\$( (<) ); echo no"
     " echo yes'; echo \$?"
     " printf '%s\\n' '\$( (<) ); echo no' 'echo yes' >sourced; . ./sourced"
     ' ( eval "\$( (<) )"; echo no ); echo $?'
@@ -31,6 +33,16 @@ cmds=(
     ' echo $( if ) no'
     ' echo ${x:-$( (<) )} no'
     ' echo $( : ) $( echo $( : ) ) ) no'
+    ' if;'
+    ' $(;'
+    ' if;'
+    ' echo $( $(; )'
+    ' if;'
+    ' echo ${ echo $(; }'
+    ' if;'
+    " eval 'echo \$(;"
+    "if;"
+    "echo no'; echo \$?"
     ' x=$( (<'
     ' echo end'
 )

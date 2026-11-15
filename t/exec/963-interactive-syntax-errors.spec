@@ -1,4 +1,4 @@
-== stdout 1894
+== stdout 2542
 A
 bash: syntax error near unexpected token `)'
 B
@@ -58,6 +58,23 @@ bash: syntax error
 bash: syntax error near unexpected token `)'
 bash: syntax error
 bash: syntax error near unexpected token `)'
+bash: syntax error near unexpected token `;'
+bash: syntax error near unexpected token `;' while looking for matching `)'
+bash: syntax error
+bash: syntax error near unexpected token `;'
+bash: syntax error near unexpected token `;' while looking for matching `)'
+bash: syntax error
+bash: syntax error
+bash: syntax error near unexpected token `;'
+bash: syntax error near unexpected token `;' while looking for matching `)'
+bash: syntax error
+bash: syntax error
+bash: syntax error near unexpected token `;'
+if;
+echo no'; echo $?
+bash: syntax error near unexpected token `;' while looking for matching `)'
+bash: syntax error near unexpected token `;'
+2
 bash: syntax error near unexpected token `newline' while looking for matching `)'
 bash: syntax error
 end
@@ -65,7 +82,7 @@ exit
 
 == stderr 0
 
-== merged 1894
+== merged 2542
 A
 bash: syntax error near unexpected token `)'
 B
@@ -125,6 +142,23 @@ bash: syntax error
 bash: syntax error near unexpected token `)'
 bash: syntax error
 bash: syntax error near unexpected token `)'
+bash: syntax error near unexpected token `;'
+bash: syntax error near unexpected token `;' while looking for matching `)'
+bash: syntax error
+bash: syntax error near unexpected token `;'
+bash: syntax error near unexpected token `;' while looking for matching `)'
+bash: syntax error
+bash: syntax error
+bash: syntax error near unexpected token `;'
+bash: syntax error near unexpected token `;' while looking for matching `)'
+bash: syntax error
+bash: syntax error
+bash: syntax error near unexpected token `;'
+if;
+echo no'; echo $?
+bash: syntax error near unexpected token `;' while looking for matching `)'
+bash: syntax error near unexpected token `;'
+2
 bash: syntax error near unexpected token `newline' while looking for matching `)'
 bash: syntax error
 end

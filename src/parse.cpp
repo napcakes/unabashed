@@ -3623,13 +3623,16 @@ static Matched parsecomsub(Lexer *L, i32 qc, i32 open, i32 close, i32 flags)
     JmpBuf outer = L->jmp;
     if (jmpset(L->jmp)) {
         L->jmp = outer;
+        if (!L->discard) {
+            // As bash's, even unwinding, but not past a throw to the top
+            L->eoftoken = saved.eoftoken;
+        }
         if (!L->eofreached) {
             // At the prompt bash's reader goes on with the state each
             // level left, which fails once more apiece
             if (L->prompt) message(L, L->lineno, "syntax error");
             parsefail(L);  // fatal: unwind the whole parse
         }
-        L->eoftoken      = saved.eoftoken;
         L->expandaliases = saved.expandaliases;
         L->pst          |= PST_NOERROR;
         return r;  // not ok
