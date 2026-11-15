@@ -1,0 +1,22 @@
+# Native mode binds Ctrl-Z, as busybox-w32 ash does, to turn every
+# backslash on the line into a slash, as after pasting a Windows path,
+# leaving the cursor at the end; undo puts them back. It works in vi's
+# insert mode, not its command mode. The function is
+# backslash-to-slash, listed by bind only in native mode. Hand-checked:
+# no oracle runs native mode.
+personality native
+size 16 70
+rc PS1='$ '
+keys echo C:\\Users\\me\\x\\ a\\b\C-a\C-f\C-z
+snap
+keys \C-_
+snap
+keys \C-z\r
+snap
+keys bind -p | grep backslash; bind -l | tail -2\r
+snap
+keys set -o vi\r
+keys echo a\\b\e0\C-z
+snap
+keys A\C-z\r
+snap

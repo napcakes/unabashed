@@ -1,0 +1,54 @@
+== snap 1
+$ echo C:/Users/me/x/ a/b
+@ 0,25
+== snap 2
+$ echo C:\Users\me\x\ a\b
+@ 0,10
+== snap 3
+$ echo C:/Users/me/x/ a/b
+C:/Users/me/x/ a/b
+$
+@ 2,2
+== snap 4
+$ echo C:/Users/me/x/ a/b
+C:/Users/me/x/ a/b
+$ bind -p | grep backslash; bind -l | tail -2
+"\C-z": backslash-to-slash
+yank-pop
+backslash-to-slash
+$
+@ 6,2
+== snap 5
+$ echo C:/Users/me/x/ a/b
+C:/Users/me/x/ a/b
+$ bind -p | grep backslash; bind -l | tail -2
+"\C-z": backslash-to-slash
+yank-pop
+backslash-to-slash
+$ set -o vi
+$ echo a\b
+@ 7,2
+== snap 6
+$ echo C:/Users/me/x/ a/b
+C:/Users/me/x/ a/b
+$ bind -p | grep backslash; bind -l | tail -2
+"\C-z": backslash-to-slash
+yank-pop
+backslash-to-slash
+$ set -o vi
+$ echo a/b
+a/b
+$
+@ 9,2
+== snap 7
+$ echo C:/Users/me/x/ a/b
+C:/Users/me/x/ a/b
+$ bind -p | grep backslash; bind -l | tail -2
+"\C-z": backslash-to-slash
+yank-pop
+backslash-to-slash
+$ set -o vi
+$ echo a/b
+a/b
+$
+@ 9,2

@@ -1492,6 +1492,13 @@ The
 builtin, which exists only in native mode, prints the console window's
 title with no operand and otherwise sets it to its first operand,
 ignoring the rest, as busybox-w32's does.
+Ctrl-Z turns every backslash on the command line into a slash and moves
+the cursor to the end, as after pasting a Windows path, in emacs mode
+and vi's insert mode.
+The editor function is
+.BR backslash\-to\-slash ,
+which only native mode has, so it can be bound to other keys; the
+binding is made when the editor is first used.
 .PP
 Some busybox-w32 features are missing.
 Globbing is case sensitive, as in bash, unless

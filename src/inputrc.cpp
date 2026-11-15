@@ -872,9 +872,9 @@ static void rllistkeys(Buf *b, RlSeqs s)
 }
 
 // bind -p and -P list in byte order, unlike bind -l
-static Str bindfunctions(KeyNode *map, b32 readable, Arena *a)
+static Str bindfunctions(KeyNode *map, b32 readable, b32 native, Arena *a)
 {
-    iz   n     = countof(rlfunmap);
+    iz   n     = rlfuncount(native);
     Str *names = alloc<Str>(a, n);
     for (iz i = 0; i < n; i++) {
         Str name = rlfunmap[i];
@@ -1089,14 +1089,14 @@ static i32 b_bind(Shell *sh, Str *args, iz nargs, Arena scratch)
 
     if (flags & F_L) {
         Buf b(a, 1<<12);
-        for (iz k = 0; k < countof(rlfunmap); k++) {
+        for (iz k = 0; k < rlfuncount(ed->native); k++) {
             print(&b, rlfunmap[k]);
             putbyte(&b, '\n');
         }
         bprint(sh, finish(&b));
     }
-    if (flags & F_P)  bprint(sh, bindfunctions(map, 1, a));
-    if (flags & F_PP) bprint(sh, bindfunctions(map, 0, a));
+    if (flags & F_P)  bprint(sh, bindfunctions(map, 1, ed->native, a));
+    if (flags & F_PP) bprint(sh, bindfunctions(map, 0, ed->native, a));
     if (flags & F_S)  bprint(sh, bindmacros(map, EF_MACRO, 1, a));
     if (flags & F_SS) bprint(sh, bindmacros(map, EF_MACRO, 0, a));
     if (flags & F_V)  bprint(sh, bindvariables(ed, 1, a));

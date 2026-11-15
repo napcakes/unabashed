@@ -539,7 +539,7 @@ static Slice<Str> pclist(Shell *sh, Arena *a, i32 act)
     case PA_ALIAS:    compaliases(sh->aliases, a, &m); pcsorted(a, &m, 0); break;
     case PA_ARRAYVAR: m = pcarrayvars(sh->vars, a, m); pcsorted(a, &m, 0); break;
     case PA_BINDING:
-        for (iz i = 0; i < countof(rlfunmap); i++) {
+        for (iz i = 0; i < rlfuncount(sh->editor ? sh->editor->native : sh->pathmode==PM_NATIVE); i++) {
             // Until line editing starts, readline has only its own
             if (!(sh->editor && sh->editor->inited) && pcbashfn(rlfunmap[i])) continue;
             m = push(a, m, rlfunmap[i]);

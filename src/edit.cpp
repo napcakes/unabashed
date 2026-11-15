@@ -189,6 +189,7 @@ enum : i32 {
     EF_VI_YANK_ARG,
     EF_VI_YANK_POP,
     EF_VI_YANK_TO,
+    EF_BACKSLASH_TO_SLASH,  // native mode's own, busybox-w32's Ctrl-Z
     EF_VI_OVERSTRIKE_KILL_LINE,  // vi replace mode's own, unnamed
     EF_VI_OVERSTRIKE_KILL_WORD,
     EF_VI_OVERSTRIKE_YANK,
@@ -377,6 +378,7 @@ static Str edfuncs[EF_COUNT] = {
     "vi-yank-arg",
     "vi-yank-pop",
     "vi-yank-to",
+    "backslash-to-slash",
     "", "", "", "", "",
     "", "",
     "",
@@ -440,7 +442,14 @@ static Str rlfunmap[] = {
     "vi-tilde-expand", "vi-undo", "vi-unix-word-rubout", "vi-yank-arg",
     "vi-yank-pop", "vi-yank-to", "yank", "yank-last-arg", "yank-nth-arg",
     "yank-pop",
+    "backslash-to-slash",  // native mode only: see rlfuncount
 };
+
+// How many of rlfunmap's names to list: native mode adds its own last.
+static iz rlfuncount(b32 native)
+{
+    return countof(rlfunmap) - !native;
+}
 
 static iz readstdin(Shell *, File *, u8 *, iz);  // unabashed.cpp
 
@@ -711,6 +720,7 @@ struct Editor {
     iz       vimarks[26];
     Str      lineprompt;  // the line's own prompt (show-mode-in-prompt)
     b32      ttyvi;     // the tty's characters were bound in vi-insert
+    b32      native;    // native mode when the editor was first used
 };
 
 static void edbindings(Editor *ed)
@@ -971,6 +981,11 @@ static void edbindings(Editor *ed)
     for (iz i = 0; i < countof(vicommand); i++) {
         keybind(a, &ed->vimove, vicommand[i].seq, vicommand[i].fn);
     }
+    if (ed->native) {
+        // As busybox-w32: Ctrl-Z, outside vi's command mode
+        keybind(a, r, "\x1a", EF_BACKSLASH_TO_SLASH);
+        keybind(a, &ed->viins, "\x1a", EF_BACKSLASH_TO_SLASH);
+    }
     // ESC in command mode waits for a sequence, then quietly does nothing
     keyget(a, &ed->vimove, 0x1b)->fn = EF_NULL_FUNCTION;
 }
@@ -1047,6 +1062,7 @@ static Editor *editor(Shell *sh)
         ed->vilastcmd    = 'i';
         ed->vilastcount  = 1;
         ed->vilastins    = 'i';
+        ed->native       = sh->pathmode == PM_NATIVE;
         edbindings(ed);
         sh->editor = ed;
     }
@@ -2541,7 +2557,7 @@ static void edcompletename(Editor *ed)
 {
     Str typed = edtext(ed);
     Str best  = {};
-    for (iz i = 0; i < countof(rlfunmap); i++) {
+    for (iz i = 0; i < rlfuncount(ed->native); i++) {
         Str n = rlfunmap[i];
         if (!startswith(n, typed)) continue;
         if (!best.data) {
@@ -3150,7 +3166,7 @@ static void edarg(Editor *, Shell *, i32 key);
 static void edresetarg(Editor *);
 
 static i32      rlnamedfn(Str);                                // inputrc.cpp
-static Str      bindfunctions(KeyNode *, b32, Arena *);        // inputrc.cpp
+static Str      bindfunctions(KeyNode *, b32, b32, Arena *);   // inputrc.cpp
 static Str      bindmacros(KeyNode *, i32, b32, Arena *);      // inputrc.cpp
 static Str      bindvariables(Editor *, b32, Arena *);         // inputrc.cpp
 static KeyNode *rlkeymap(Editor *, i32);                       // inputrc.cpp
@@ -4595,7 +4611,7 @@ static void edrun(Editor *ed, Shell *sh, i32 fn, u8 key)
         KeyNode *map = rlkeymap(ed, ed->vars.keymap);
         Str      t   = {};
         switch (fn) {
-        case EF_DUMP_FUNCTIONS: t = bindfunctions(map, ed->argset, &a); break;
+        case EF_DUMP_FUNCTIONS: t = bindfunctions(map, ed->argset, ed->native, &a); break;
         case EF_DUMP_MACROS:    t = bindmacros(map, EF_MACRO, ed->argset, &a); break;
         case EF_DUMP_VARIABLES: t = bindvariables(ed, ed->argset, &a); break;
         }
@@ -4984,6 +5000,19 @@ static void edrun(Editor *ed, Shell *sh, i32 fn, u8 key)
             for (i32 i = 0; i < -count; i++) ed->point = edprev(ed, ed->point);
         }
         edinsert(ed, c);
+        edgroup(ed, U_END);
+    } break;
+    case EF_BACKSLASH_TO_SLASH: {
+        // Every backslash on the line, as after pasting a Windows path,
+        // and the cursor to the end, as busybox-w32 redraws it
+        edgroup(ed, U_BEGIN);
+        for (iz i = 0; i < ed->line.len; i++) {
+            if (ed->line.data[i] != '\\') continue;
+            eddelete(ed, i, i+1);
+            ed->point = i;
+            edinsert(ed, "/");
+        }
+        ed->point = ed->line.len;
         edgroup(ed, U_END);
     } break;
     case EF_QUOTED_INSERT: {
