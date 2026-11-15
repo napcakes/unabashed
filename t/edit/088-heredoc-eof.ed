@@ -1,0 +1,16 @@
+# The end of input in a here-document ends only its body: the command
+# runs and the shell prompts again, rather than exiting. The parser's
+# warnings appear as it reads, before the next prompt: a command
+# substitution's unterminated here-document as soon as its ) is read.
+size 14 72
+rc PS1='$ '
+keys cat <<.\r
+keys foo\r
+keys \C-d
+snap
+keys echo $(<<.)\r
+snap
+keys \C-d
+snap
+keys echo still here\r
+snap

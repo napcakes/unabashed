@@ -1,0 +1,67 @@
+== snap 1
+$ cat <<.
+> foo
+>
+bash: warning: here-document at line 1 delimited by end-of-file (wanted
+`.')
+foo
+$
+@ 6,2
+== snap 2
+$ cat <<.
+> foo
+>
+bash: warning: here-document at line 1 delimited by end-of-file (wanted
+`.')
+foo
+$ echo $(<<.)
+bash: warning: command substitution: 1 unterminated here-document
+>
+@ 8,2
+== snap 3
+$ cat <<.
+> foo
+>
+bash: warning: here-document at line 1 delimited by end-of-file (wanted
+`.')
+foo
+$ echo $(<<.)
+bash: warning: command substitution: 1 unterminated here-document
+>
+bash: warning: here-document at line 3 delimited by end-of-file (wanted
+`.')
+
+$
+@ 12,2
+== snap 4
+> foo
+>
+bash: warning: here-document at line 1 delimited by end-of-file (wanted
+`.')
+foo
+$ echo $(<<.)
+bash: warning: command substitution: 1 unterminated here-document
+>
+bash: warning: here-document at line 3 delimited by end-of-file (wanted
+`.')
+
+$ echo still here
+still here
+$
+@ 13,2
+== snap 5
+> foo
+>
+bash: warning: here-document at line 1 delimited by end-of-file (wanted
+`.')
+foo
+$ echo $(<<.)
+bash: warning: command substitution: 1 unterminated here-document
+>
+bash: warning: here-document at line 3 delimited by end-of-file (wanted
+`.')
+
+$ echo still here
+still here
+$
+@ 13,2

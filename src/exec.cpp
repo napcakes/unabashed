@@ -4658,6 +4658,46 @@ static void dumpstring(Shell *sh, Arena scratch, Str s, i32 line)
     fdwrite(sh, 1, finish(&b));
 }
 
+// Report the parser's messages so far, and forget them. As bash's
+// parser_error, a shell reading interactively (at the prompt or in
+// eval, not a sourced file or PROMPT_COMMAND) names no line, nor quotes
+// the line in error.
+static void reportmessages(Shell *sh, Lexer *L)
+{
+    Arena msgarena = *L->a;
+    b32   noline   = sh->interactive && !sh->sourcedepth && !(sh->iname=="PROMPT_COMMAND");
+    for (Message *m = L->msgs; m; m = m->next) {
+        if (noline && m->kind==MSG_LINE) continue;
+        if (m->kind == MSG_DUMP) {
+            dumpstring(sh, msgarena, m->text, m->line);
+            continue;
+        }
+        Buf b(&msgarena, 128);
+        print(&b, errname(sh));
+        if (noline) {
+            print(&b, ": ");
+            if (m->kind == MSG_WARNING) print(&b, "warning: ");
+        } else if (m->kind != MSG_WARNING) {
+            if (!(errname(sh) == sh->iname)) {
+                print(&b, ": ");
+                print(&b, sh->iname);
+            }
+            print(&b, ": line ");
+            print(&b, (i64)m->line);
+            print(&b, ": ");
+        } else {
+            print(&b, ": line ");
+            print(&b, (i64)m->line);
+            print(&b, ": warning: ");
+        }
+        print(&b, m->text);
+        putbyte(&b, '\n');
+        fdwrite(sh, 2, finish(&b));
+    }
+    L->msgs    = 0;
+    L->msgtail = &L->msgs;
+}
+
 // Parse and run src one command at a time, as -c, eval, source and
 // command substitution do, numbering its lines from line. Returns the
 // final status. With comsub, src is the printed text of a $(...) or
@@ -4722,41 +4762,7 @@ static i32 runsource(Shell *sh, Str src, Str iname, Arena scratch, b32 reader, i
             if (text.len) fdwrite(sh, 2, text);
             if (text.len && text[text.len-1]!='\n') fdwrite(sh, 2, "\n");
         }
-        // Report parser messages. As bash's parser_error, a shell reading
-        // interactively (at the prompt or in eval, not a sourced file or
-        // PROMPT_COMMAND) names no line, nor quotes the line in error.
-        Arena msgarena = *L->a;
-        b32   noline   = sh->interactive && !sh->sourcedepth && !(iname=="PROMPT_COMMAND");
-        for (Message *m = L->msgs; m; m = m->next) {
-            if (noline && m->kind==MSG_LINE) continue;
-            if (m->kind == MSG_DUMP) {
-                dumpstring(sh, msgarena, m->text, m->line);
-                continue;
-            }
-            Buf b(&msgarena, 128);
-            print(&b, errname(sh));
-            if (noline) {
-                print(&b, ": ");
-                if (m->kind == MSG_WARNING) print(&b, "warning: ");
-            } else if (m->kind != MSG_WARNING) {
-                if (!(errname(sh) == sh->iname)) {
-                    print(&b, ": ");
-                    print(&b, sh->iname);
-                }
-                print(&b, ": line ");
-                print(&b, (i64)m->line);
-                print(&b, ": ");
-            } else {
-                print(&b, ": line ");
-                print(&b, (i64)m->line);
-                print(&b, ": warning: ");
-            }
-            print(&b, m->text);
-            putbyte(&b, '\n');
-            fdwrite(sh, 2, finish(&b));
-        }
-        L->msgs    = 0;
-        L->msgtail = &L->msgs;
+        reportmessages(sh, L);
         if (r.status==PARSE_EOF && sh->prettyprint && !outer && !prettynl) {
             fdwrite(sh, 1, "\n");
         }

@@ -1631,6 +1631,7 @@ static void readheredoc(Lexer *L, Redir *r, i32 lineno)
     L->heredocstring = expandingalias(L) && L->idx<L->line.len;
     Buf doc(L->a, 64);
     b32 found = 0;
+    b32 (*fill)(void *, Lexer *) = L->fill;
     for (;;) {
         Str line = L->heredocstring ? readgetcline(L, unquoted)
                                     : readrawline(L, unquoted);
@@ -1679,6 +1680,9 @@ static void readheredoc(Lexer *L, Redir *r, i32 lineno)
     L->heredocstring = 0;
     r->gathered = 1;
     if (!found) {
+        // As bash, the end of input ends only the body: the next read
+        // tries again, so an interactive shell prompts once more
+        L->fill = fill;
         Buf b(L->a, 64);
         print(&b, "here-document at line ");
         print(&b, (i64)lineno);

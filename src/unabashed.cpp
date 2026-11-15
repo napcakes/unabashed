@@ -1133,6 +1133,8 @@ static b32 fillline(void *ctx, Lexer *L)
     Buf   *b     = &in->buf;
     iz     start = b->len;
     b32 seekable = f && f->kind==F_OS && os_seek(sh->os, f->h, 0, 1)>=0;
+    // As bash, which prints them as it parses: before the next prompt
+    if (sh->interactive) reportmessages(sh, L);
     if (sh->interactive && L->newunit) {
         if (sh->jobs) notifyprompt(sh, *scratchat(sh, sh->capdepth+1), 0);
         promptcommand(sh);
