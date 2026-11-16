@@ -3716,8 +3716,9 @@ static b32 describe(Shell *sh, Arena *a, Str name, u8 mode, b32 all, b32 nofuncs
     for (iz nth = 0;; nth++) {
         Str path = {};
         if (slash) {
-            Stat st = pathstat(sh, *a, name, 1);
-            if (!nth && canexec(sh, st)) path = name;
+            Stat st;
+            Str  run = withext(sh, a, name, &st);
+            if (!nth && canexec(sh, st)) path = run;
         } else {
             path = std ? pathsearch(sh, a, stdpath(sh), name, nth)
                        : pathlookup(sh, a, name, nth);

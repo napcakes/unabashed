@@ -224,6 +224,15 @@ static b32 knownext(Str name)
     return 0;
 }
 
+// busybox-w32's add_win32_extension: in native mode a name that is not
+// an executable file as given is tried with each extension, unless it
+// already has one or ends in a dot.
+static b32 tryexts(Shell *sh, Str name)
+{
+    return sh->pathmode==PM_NATIVE && !knownext(name)
+           && !(name.len && name[name.len-1]=='.');
+}
+
 static b32 isbatch(Str path)
 {
     return hasext(path, ".bat") || hasext(path, ".cmd");
@@ -275,8 +284,7 @@ static b32 canexec(Shell *sh, Stat st)
 // is, as bash shows it.
 static Str pathsearch(Shell *sh, Arena *a, Str path, Str name, iz nth = 0)
 {
-    b32 exts  = sh->pathmode==PM_NATIVE && !knownext(name)
-                && !(name.len && name[name.len-1]=='.');
+    b32 exts  = tryexts(sh, name);
     u8  sep   = listsep(sh);
     b32 found = 0;
     Str lose  = {};
@@ -310,6 +318,25 @@ static Str pathlookup(Shell *sh, Arena *a, Str name, iz nth = 0)
         return !nth && !st.err && st.type!=FT_DIR ? name : Str{};
     }
     return pathsearch(sh, a, g.value, name, nth);
+}
+
+// A path the shell was given to run, as it runs it (locate): in native
+// mode with the extension added where the name as given is not an
+// executable file, as busybox-w32's command -v shows it. Its status
+// goes in *st.
+static Str withext(Shell *sh, Arena *a, Str path, Stat *st)
+{
+    *st = pathstat(sh, *a, path, 1);
+    if (canexec(sh, *st) || !tryexts(sh, path)) return path;
+    for (iz e = 0; e < countof(winexts); e++) {
+        Str  cand = concat(a, path, winexts[e]);
+        Stat x    = pathstat(sh, *a, cand, 1);
+        if (canexec(sh, x)) {
+            *st = x;
+            return cand;
+        }
+    }
+    return path;
 }
 
 
@@ -538,8 +565,11 @@ static Located locate(Shell *sh, Arena *a, Str path)
             l.st     = x;
         }
     }
-    if (l.st.err==E_NOENT && sh->pathmode==PM_NATIVE && !knownext(l.native)) {
-        // busybox-w32's add_win32_extension, also for explicit paths
+    Stat w = l.st;
+    if (!w.err) w.mode = winmode(sh, *a, l.native, w);
+    if (tryexts(sh, l.native) && !canexec(sh, w)) {
+        // busybox-w32's add_win32_extension, also for explicit paths:
+        // even beside a file of the bare name that cannot run
         for (iz e = 0; e < countof(winexts); e++) {
             Str  cand = concat(a, l.native, winexts[e]);
             Stat x    = os_stat(sh->os, *a, cand, 1);
