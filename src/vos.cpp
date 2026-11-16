@@ -1222,11 +1222,20 @@ static iz vttyget(Os *os, Vos *v, u8 *buf, iz len)
 // can ever run.
 static void vstop(Os *, Vos *, VProc *, i32 sig);
 
+// The shell under test, out of the terminal's foreground group (left
+// there by a failed exec): it ignores SIGTTIN interactively, so its
+// reads fail with EIO.
+static b32 vbgshell(Vos *v)
+{
+    return v->cur==0 && v->procs[0].pgid!=vfgpgrp(v);
+}
+
 // A program outside the terminal's foreground group reading it gets
 // SIGTTIN: it stops, and reads once continued, or fails (ignored).
 static b32 vttyaccess(Os *os, Vos *v)
 {
     VProc *me = v->procs + v->cur;
+    if (vbgshell(v)) return 0;
     while (!me->shell && me->pgid!=vfgpgrp(v)) {
         if (me->sigign>>(21-1) & 1) return 0;
         vstop(os, v, me, 21);
@@ -2967,6 +2976,17 @@ static void vreapexited(Os *os, Vos *v)
     }
 }
 
+// A program whose exec failed: posix_spawn's or fork's child had
+// already put itself in a group of its own and given that the
+// terminal, as the plan said, before it died.
+static void vexecfailed(Vos *v, Spawn *s)
+{
+    if (s->pgid && s->fg && vistty(v, s->tty)) {
+        i64 pid = v->nextpid++;
+        v->tty.fgpgrp = s->pgid<0 ? pid : s->pgid;
+    }
+}
+
 static Spawned vos_spawn(Os *os, Arena scratch, Spawn *s)
 {
     Vos    *v = osvos(os);
@@ -3013,6 +3033,7 @@ static Spawned vos_spawn(Os *os, Arena scratch, Spawn *s)
     }
     i32 prog = g.prog;
     if (prog < 0) {
+        if (!v->win && !s->image.base) vexecfailed(v, s);
         r.err = g.err;
         return r;
     }
@@ -3042,6 +3063,7 @@ static Spawned vos_spawn(Os *os, Arena scratch, Spawn *s)
             total += a.len + 1 + (iz)sizeof(void *);
         }
         if (total > ARGMAX) {
+            vexecfailed(v, s);
             r.err = E_2BIG;
             return r;
         }
@@ -3195,6 +3217,11 @@ static b32 vio(Os *os, Vos *v, Io *io, b32 perform)
             if (!io->len) {
                 if (!vttyhas(v)) return 0;
                 if (perform) io->n = 0;
+                return 1;
+            }
+            if (perform && vbgshell(v)) {
+                io->n   = -1;
+                io->err = E_IO;
                 return 1;
             }
             if (!vttyready(v)) return 0;

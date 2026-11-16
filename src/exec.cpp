@@ -2278,9 +2278,13 @@ static i32 runprogram(Shell *sh, Arena a, Str path, Str *argv, iz argc,
     }
     sh->sig->execpid = 0;
     sh->childsig = 0;
+    if (group && sp.fg) {
+        // Even after a failed start: a forked child may have taken the
+        // terminal before its exec failed (bash's parent takes it back)
+        os_tcpgrp(sh->os, sh->jctty, sh->shellpgid);
+    }
     if (group && !r.err) {
         if (sp.fg) {
-            os_tcpgrp(sh->os, sh->jctty, sh->shellpgid);
             if ((status & WSIGNALED) && (status & 255)==128+2) {
                 // The terminal's INT reached only the program: in a
                 // loop (or untrapped, interactively) the shell acts as

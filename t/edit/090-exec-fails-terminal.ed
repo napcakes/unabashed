@@ -1,0 +1,9 @@
+# A program that cannot start leaves the terminal with the shell: its
+# forked child had taken it before the exec failed, and the next key
+# typed must not read as the end of input
+rc PS1='$ '
+keys /\r
+keys /nonexistent\r
+keys echo still here\r
+snap
+keys exit\r

@@ -1,0 +1,20 @@
+== snap 1
+$ /
+bash: /: Is a directory
+$ /nonexistent
+bash: /nonexistent: No such file or directory
+$ echo still here
+still here
+$
+@ 6,2
+== snap 2
+$ /
+bash: /: Is a directory
+$ /nonexistent
+bash: /nonexistent: No such file or directory
+$ echo still here
+still here
+$ exit
+exit
+
+@ 8,0
