@@ -3868,51 +3868,49 @@ static void timereport(Shell *sh, Arena scratch, i64 real, b32 posix)
         if (g.set) fmt = g.value;
     }
     if (!fmt.len) return;
+    Str bad = {};
     Buf b(&scratch, 64);
     for (iz i = 0; i < fmt.len; i++) {
         u8 c = fmt[i];
-        if (c!='%' || i+1==fmt.len) {
+        if (c == '%') {
+            if (++i==fmt.len || fmt[i]=='%') {
+                putbyte(&b, '%');
+                continue;
+            }
+            i32 prec = 3;
+            c = fmt[i];
+            if (c>='0' && c<='9') {
+                if (++i == fmt.len) goto reject;
+                prec = c - '0';
+                if (prec > 6) prec = 6;
+                c = fmt[i];
+            }
+            b32 islong = 0;
+            if (c == 'l') {
+                if (++i == fmt.len) goto reject;
+                islong = 1;
+                c = fmt[i];
+            }
+            switch (c) {
+            case 'R': printduration(&b, real, prec, islong, sh->radix); break;
+            case 'U':
+            case 'S': printduration(&b, 0, prec, islong, sh->radix);    break;
+            case 'P': print(&b, "0.00");                     break;
+            default:  bad = {&fmt.data[i], 1}; goto reject;
+            }
+        } else {
+            assert(c != 0);
             putbyte(&b, c);
-            continue;
         }
-        iz j = i + 1;
-        if (fmt[j] == '%') {
-            putbyte(&b, '%');
-            i = j;
-            continue;
-        }
-        i32 prec = 3;
-        b32 islong = 0;
-        if (j<fmt.len && fmt[j]>='0' && fmt[j]<='9') {
-            prec = fmt[j++] - '0';
-            if (prec > 3) prec = 3;
-        }
-        if (j<fmt.len && fmt[j]=='l') {
-            islong = 1;
-            j++;
-        }
-        if (j == fmt.len) {
-            putbyte(&b, c);
-            continue;
-        }
-        switch (fmt[j]) {
-        case 'R': printduration(&b, real, prec, islong, sh->radix); break;
-        case 'U':
-        case 'S': printduration(&b, 0, prec, islong, sh->radix);    break;
-        case 'P': print(&b, "0.00");                     break;
-        default: {
-            // As bash: an error instead of the whole report
-            Str bad = {&fmt.data[j], 1};
-            Str msg = concat3(&scratch, "TIMEFORMAT: `", bad, "': invalid format character");
-            shellerror(sh, scratch, msg);
-            return;
-        }
-        }
-        i = j;
     }
     putbyte(&b, '\n');
     flushbout(sh);
     fdwrite(sh, 2, finish(&b));
+    return;
+
+reject:;
+    Str msg = concat3(&scratch, "TIMEFORMAT: `", bad, "': invalid format character");
+    shellerror(sh, scratch, msg);
 }
 
 static void executenode(Shell *, Node *, Arena);
